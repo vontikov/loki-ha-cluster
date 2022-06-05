@@ -1,0 +1,67 @@
+version: '3.9'
+
+services:
+  minio:
+    image: quay.io/minio/minio:latest
+    hostname: minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "admin"
+      MINIO_ROOT_PASSWORD: "password"
+    ports:
+      - 9001:9001
+
+  minio-init:
+    image: minio/mc
+    container_name: minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc config host add storage http://minio:9000 admin password;
+      /usr/bin/mc rm -r --force storage/loki;
+      /usr/bin/mc mb storage/loki;
+      /usr/bin/mc policy set public storage/loki;
+      exit 0;
+      "
+
+  loki1:
+    image: grafana/loki:2.5.0
+    hostname: loki1
+    container_name: loki1
+    command: -config.file=/etc/loki/config.yml -log.level=debug
+    volumes:
+      - ./conf/loki/config1.yml:/etc/loki/config.yml
+    depends_on:
+      - minio-init
+
+  loki2:
+    image: grafana/loki:2.5.0
+    hostname: loki2
+    container_name: loki2
+    command: -config.file=/etc/loki/config.yml -log.level=debug
+    volumes:
+      - ./conf/loki/config2.yml:/etc/loki/config.yml
+    depends_on:
+      - minio-init
+
+  envoy:
+    image: envoyproxy/envoy:v1.22.0
+    hostname: envoy
+    container_name: envoy
+    volumes:
+      - ./conf/envoy/envoy.yaml:/etc/envoy/envoy.yaml
+    ports:
+      - 8080:8080
+      - 3100:3100
+
+  grafana:
+    image: grafana/grafana-oss:8.5.4
+    hostname: grafana
+    container_name: grafana
+    volumes:
+      - ./conf/grafana/provisioning:/etc/grafana/provisioning
+      - ./conf/grafana/grafana.ini:/etc/grafana/grafana.ini
+    ports:
+      - 3000:3000

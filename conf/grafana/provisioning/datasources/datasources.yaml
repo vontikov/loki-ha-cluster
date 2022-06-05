@@ -1,0 +1,11 @@
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://envoy:3100
+    jsonData:
+      maxLines: 1000
+    default: true
+    editable: true
